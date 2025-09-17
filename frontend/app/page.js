@@ -1,12 +1,14 @@
 "use client";
 import React from "react";
 import Link from "next/link";
-
+import Navbar from "../components/Navbar";
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Navbar */}
-
+      <div className="fixed top-0 left-0 w-full z-50">
+        <Navbar />
+      </div>
       {/* Hero Section */}
       <section className="flex flex-col items-center justify-center flex-grow text-center px-6 bg-gradient-to-b from-indigo-50 to-white">
         <h1 className="text-4xl md:text-5xl font-bold text-gray-800 leading-tight">
