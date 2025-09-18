@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FileText,
   Clock,
@@ -8,40 +8,48 @@ import {
   BarChart3,
   MessageSquare,
 } from "lucide-react";
+import { listLegislation } from "@/lib/legislation";
 
 export default function DashboardStats() {
-  // Mock legislation data
-  const legislations = [
-    {
-      id: "LEG-101",
-      title: "Digital Privacy Act",
-      deadline: "2025-09-30",
-      active: true,
-    },
-    {
-      id: "LEG-102",
-      title: "Environmental Protection Bill",
-      deadline: "2025-09-20",
-      active: true,
-    },
-    {
-      id: "LEG-103",
-      title: "Taxation Reform Draft",
-      deadline: "2025-10-15",
-      active: false,
-    },
-  ];
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const today = new Date();
-  const expiringSoon = legislations.filter((l) => {
-    const deadline = new Date(l.deadline);
-    const diffDays = (deadline - today) / (1000 * 60 * 60 * 24);
-    return diffDays >= 0 && diffDays <= 7; // expiring within 7 days
-  });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await listLegislation();
+        if (!cancelled) setItems(data);
+      } catch (e) {
+        if (!cancelled) setError(e?.message || "Failed to load dashboard data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const total = legislations.length;
-  const active = legislations.filter((l) => l.active).length;
-  const inactive = total - active;
+  const { total, activeCount, inactiveCount, expiringSoon } = useMemo(() => {
+    const totalLocal = items.length;
+    const activeCountLocal = items.filter((l) => l.status === "active").length;
+    const inactiveCountLocal = totalLocal - activeCountLocal;
+    const today = new Date();
+    const soon = items.filter((l) => {
+      const end = new Date(l.endDate);
+      const diffDays = Math.floor((end - today) / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 && diffDays <= 7;
+    });
+    return {
+      total: totalLocal,
+      activeCount: activeCountLocal,
+      inactiveCount: inactiveCountLocal,
+      expiringSoon: soon,
+    };
+  }, [items]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white px-6 py-10">
@@ -54,6 +62,12 @@ export default function DashboardStats() {
             Snapshot of legislation activity and deadlines
           </p>
         </div>
+
+        {error && (
+          <div className="mb-4 text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded px-3 py-2">
+            {error}
+          </div>
+        )}
 
         {/* Asymmetric Stats Grid */}
         <div className="grid grid-cols-12 gap-6 mb-10">
@@ -72,13 +86,13 @@ export default function DashboardStats() {
               <div className="rounded-lg border border-gray-100 p-4">
                 <p className="text-xs text-gray-500">Active</p>
                 <p className="text-xl font-semibold text-emerald-600">
-                  {active}
+                  {activeCount}
                 </p>
               </div>
               <div className="rounded-lg border border-gray-100 p-4">
                 <p className="text-xs text-gray-500">Inactive</p>
                 <p className="text-xl font-semibold text-gray-700">
-                  {inactive}
+                  {inactiveCount}
                 </p>
               </div>
               <div className="rounded-lg border border-gray-100 p-4">
@@ -104,7 +118,8 @@ export default function DashboardStats() {
               </span>
             </div>
             <ul className="space-y-3">
-              {expiringSoon.length === 0 && (
+              {loading && <li className="text-sm text-gray-500">Loading...</li>}
+              {!loading && expiringSoon.length === 0 && (
                 <li className="text-sm text-gray-500">
                   No upcoming deadlines this week.
                 </li>
@@ -121,7 +136,7 @@ export default function DashboardStats() {
                     <p className="text-xs text-gray-500">ID: {l.id}</p>
                   </div>
                   <span className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-100 px-2 py-1 rounded">
-                    {new Date(l.deadline).toLocaleDateString()}
+                    {new Date(l.endDate).toLocaleDateString()}
                   </span>
                 </li>
               ))}
