@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { useState } from "react";
+import { addLegislation } from "@/lib/legislation";
 const page = () => {
   const [formData, setFormData] = useState({
     legislationId: "",
@@ -9,23 +10,32 @@ const page = () => {
     startDate: "",
     endDate: "",
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Legislation Added:", formData);
-    alert("Legislation submitted successfully!");
-    setFormData({
-      legislationId: "",
-      title: "",
-      description: "",
-      startDate: "",
-      endDate: "",
-    });
+    try {
+      setSubmitting(true);
+      await addLegislation(formData);
+      alert("Legislation submitted successfully!");
+      setFormData({
+        legislationId: "",
+        title: "",
+        description: "",
+        startDate: "",
+        endDate: "",
+      });
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || "Failed to submit legislation");
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <>
@@ -111,9 +121,10 @@ const page = () => {
 
             <button
               type="submit"
-              className="w-full mt-6 bg-indigo-600 text-white py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition"
+              disabled={submitting}
+              className="w-full mt-6 bg-indigo-600 disabled:opacity-60 text-white py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition"
             >
-              Submit
+              {submitting ? "Submitting..." : "Submit"}
             </button>
           </form>
         </div>

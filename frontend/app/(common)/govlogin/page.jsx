@@ -1,80 +1,115 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 export default function GovAuth() {
-  const [activeTab, setActiveTab] = useState("login");
-  const [name, setName] = useState("");
+  const [govId, setGovId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [message, setMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  const allowedSuffixes = [
-    ".gov",
-    ".gov.in",
-    ".nic.in",
-    ".gov.uk",
-    ".gov.au",
-    ".gov.ca",
-    ".gov.za",
-  ];
-
-  function isGovEmail(email) {
-    if (!email) return false;
-    email = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
-    return allowedSuffixes.some((suf) => email.endsWith(suf));
+  // Basic format check only; domain allow-listing is enforced via Firestore pre-approval
+  function emailLooksValid(e) {
+    if (!e) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
   }
 
-  function passwordOk(p) {
-    return (
-      p &&
-      p.length >= 8 &&
-      /[a-z]/.test(p) &&
-      /[A-Z]/.test(p) &&
-      /[0-9]/.test(p)
-    );
-  }
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
 
-    if (activeTab === "signup" && !name.trim()) {
-      setMessage({ type: "error", text: "Please enter your full name." });
+    if (!govId.trim()) {
+      setMessage({ type: "error", text: "Please enter your Government ID." });
       return;
     }
-    if (!isGovEmail(email)) {
+    if (!emailLooksValid(email)) {
       setMessage({
         type: "error",
-        text: "Email is not recognized as a government address.",
+        text: "Please enter a valid email address.",
       });
-      return;
-    }
-    if (!passwordOk(password)) {
-      setMessage({
-        type: "error",
-        text: "Password must be at least 8 chars and include uppercase, lowercase, and number.",
-      });
-      return;
-    }
-    if (activeTab === "signup" && password !== confirm) {
-      setMessage({ type: "error", text: "Passwords do not match." });
       return;
     }
 
-    setLoading(true);
-    setTimeout(() => {
+    try {
+      setLoading(true);
+      console.log("Attempting login with:", { govId, email, password });
+
+      // Pre-approved email check in govOfficials collection
+      const officialsRef = collection(db, "govOfficials");
+      const q = query(
+        officialsRef,
+        where("email", "==", email.trim().toLowerCase())
+      );
+      const snap = await getDocs(q);
+
+      console.log(
+        "Query results:",
+        snap.empty ? "No records found" : `${snap.docs.length} records found`
+      );
+
+      if (snap.empty) {
+        setMessage({
+          type: "error",
+          text: "This email is not pre-approved for access.",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const record = snap.docs[0].data();
+      console.log("Found record:", record);
+
+      const storedGovId = String(record.gov_id || "").trim();
+      const storedPassword = String(record.password || "").trim();
+      const inputGovId = govId.trim();
+      const inputPassword = password.trim();
+
+      console.log("Comparing:", {
+        storedGovId,
+        inputGovId,
+        govIdMatch: storedGovId === inputGovId,
+        storedPassword,
+        inputPassword,
+        passwordMatch: storedPassword === inputPassword,
+      });
+
+      if (storedGovId !== inputGovId) {
+        setMessage({
+          type: "error",
+          text: `Government ID does not match our records. Expected: ${storedGovId}, Got: ${inputGovId}`,
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (storedPassword !== inputPassword) {
+        setMessage({
+          type: "error",
+          text: `Incorrect password. Expected: ${storedPassword}, Got: ${inputPassword}`,
+        });
+        setLoading(false);
+        return;
+      }
+
       setMessage({
         type: "success",
-        text:
-          activeTab === "login"
-            ? "Login successful (Demo)."
-            : "Account created successfully (Demo).",
+        text: `Welcome, ${record.name || "Official"}.`,
       });
+      // Optional redirect to dashboard
+      setTimeout(() => router.push("/dashboard"), 600);
+    } catch (err) {
+      console.error("Login error:", err);
+      setMessage({
+        type: "error",
+        text: `Unexpected error during login: ${err.message}`,
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -95,52 +130,21 @@ export default function GovAuth() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b mb-4">
-          <button
-            onClick={() => {
-              setActiveTab("login");
-              setMessage(null);
-            }}
-            className={`flex-1 py-2 text-sm font-medium ${
-              activeTab === "login"
-                ? "border-b-2 border-indigo-600 text-indigo-600"
-                : "text-gray-500 hover:text-indigo-600"
-            }`}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab("signup");
-              setMessage(null);
-            }}
-            className={`flex-1 py-2 text-sm font-medium ${
-              activeTab === "signup"
-                ? "border-b-2 border-indigo-600 text-indigo-600"
-                : "text-gray-500 hover:text-indigo-600"
-            }`}
-          >
-            Sign Up
-          </button>
-        </div>
-
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {activeTab === "signup" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. A. K. Sharma"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white text-gray-800 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Government ID
+            </label>
+            <input
+              type="text"
+              placeholder="Enter your Gov ID"
+              value={govId}
+              onChange={(e) => setGovId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white text-gray-800 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
+              required
+            />
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -154,10 +158,6 @@ export default function GovAuth() {
               className="w-full rounded-lg border border-gray-300 bg-white text-gray-800 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Allowed: <code>.gov</code>, <code>.gov.in</code>,{" "}
-              <code>.nic.in</code>, etc.
-            </p>
           </div>
 
           <div>
@@ -177,22 +177,6 @@ export default function GovAuth() {
             </p>
           </div>
 
-          {activeTab === "signup" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                placeholder="Re-enter your password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white text-gray-800 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-400"
-                required
-              />
-            </div>
-          )}
-
           {/* Message */}
           {message && (
             <div
@@ -211,13 +195,7 @@ export default function GovAuth() {
             disabled={loading}
             className="w-full bg-indigo-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-indigo-700 transition disabled:opacity-50"
           >
-            {loading
-              ? activeTab === "login"
-                ? "Logging in..."
-                : "Signing up..."
-              : activeTab === "login"
-              ? "Login"
-              : "Sign Up"}
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
