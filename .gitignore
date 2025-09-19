@@ -1,3 +1,90 @@
-node_modules
-node_modules
-node_modules
+# Dependencies
+node_modules/
+/frontend/node_modules/
+/.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Python
+*.py[cod]
+__pycache__/
+*.so
+.Python
+/backend/.venv/
+/backend/env/
+/backend/venv/
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib64/
+.pytest_cache/
+
+# Next.js
+/.next/
+/frontend/.next/
+/out/
+/build
+/frontend/build/
+
+# Testing
+/coverage
+.coverage
+htmlcov/
+
+# Production
+/build
+/frontend/build
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env
+*.pem
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Large model files and cache
+/backend/.cache/
+/backend/models/
+*.pt
+*.pth
+*.onnx
+*.bin
+*.h5
+
+# System Files
+Thumbs.db
+.DS_Store
+desktop.ini
