@@ -1,53 +1,73 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { db } from "../../../lib/firebase";
+import { collection, getDocs, query } from "firebase/firestore";
+import { listLegislation } from "@/lib/legislation";
 
 export default function CommentsPage() {
-  const legislations = [
-    { id: "LEG-101", title: "Digital Privacy Act Amendment" },
-    { id: "LEG-102", title: "Environmental Protection Bill" },
-  ];
+  const [legislations, setLegislations] = useState([]);
+  const [allComments, setAllComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingLeg, setLoadingLeg] = useState(true);
 
-  // Mock comments data
-  const allComments = [
-    {
-      legislationId: "LEG-101",
-      comment: "This law will greatly improve privacy protections.",
-      rating: 5,
-      userId: "user001",
-      sentiment: "Positive",
-      confidence: 92,
-    },
-    {
-      legislationId: "LEG-101",
-      comment: "Implementation details are unclear.",
-      rating: 3,
-      userId: "user002",
-      sentiment: "Neutral",
-      confidence: 76,
-    },
-    {
-      legislationId: "LEG-102",
-      comment: "Too strict, will hurt small businesses.",
-      rating: 2,
-      userId: "user003",
-      sentiment: "Negative",
-      confidence: 88,
-    },
-    {
-      legislationId: "LEG-102",
-      comment: "Good step for protecting the environment.",
-      rating: 4,
-      userId: "user004",
-      sentiment: "Positive",
-      confidence: 95,
-    },
-  ];
+  // 🔹 Fetch legislations using the same method as feedback form
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const items = await listLegislation();
+        if (isMounted) setLegislations(items);
+      } catch (e) {
+        console.error("Failed to load legislation", e);
+      } finally {
+        if (isMounted) setLoadingLeg(false);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 🔹 Fetch comments
+  useEffect(() => {
+    async function fetchComments() {
+      try {
+        const commentsRef = collection(db, "comments");
+        const commentsQuery = query(commentsRef);
+        const querySnapshot = await getDocs(commentsQuery);
+
+        const commentsData = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            legislationId: data.legislationId,
+            comment: data.text,
+            rating: data.rating,
+            userId: data.commentId,
+            sentiment:
+              data.sentimentLabel.charAt(0).toUpperCase() +
+              data.sentimentLabel.slice(1),
+            confidence: Math.round(data.sentimentScore * 100),
+            createdAt: data.createdAt?.toDate().toLocaleString(),
+          };
+        });
+
+        setAllComments(commentsData);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+        setLoading(false);
+      }
+    }
+
+    fetchComments();
+  }, []);
 
   const [selectedLegislation, setSelectedLegislation] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("All");
   const [page, setPage] = useState(1);
 
-  // Filtered & paginated comments
+  // 🔹 Filtered & paginated comments
   const filteredComments = allComments.filter(
     (c) =>
       (selectedLegislation === "" || c.legislationId === selectedLegislation) &&
@@ -68,21 +88,29 @@ export default function CommentsPage() {
           Stakeholder Comments
         </h2>
 
+        {loading && (
+          <div className="flex justify-center items-center py-10">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+
         {/* Controls */}
         <div className="flex flex-wrap gap-4 mb-6">
-          {/* Legislation Dropdown */}
+          {/* 🔹 Updated Legislation Dropdown using feedback form pattern */}
           <select
             value={selectedLegislation}
             onChange={(e) => {
               setSelectedLegislation(e.target.value);
               setPage(1);
             }}
-            className="border rounded-lg px-4 py-2 text-gray-700"
+            className="border border-gray-300 rounded-lg px-4 py-2 text-gray-700 focus:ring-2 focus:ring-indigo-500"
           >
-            <option value="">-- Select Legislation --</option>
-            {legislations.map((law) => (
-              <option key={law.id} value={law.id}>
-                {law.title}
+            <option value="" disabled>
+              {loadingLeg ? "Loading..." : "-- Select Legislation --"}
+            </option>
+            {legislations.map((item) => (
+              <option key={item.id} value={item.legislationId || item.id}>
+                {item.title}
               </option>
             ))}
           </select>
@@ -111,9 +139,9 @@ export default function CommentsPage() {
                 <th className="px-4 py-2 text-left">Legislation ID</th>
                 <th className="px-4 py-2 text-left">Comment</th>
                 <th className="px-4 py-2 text-center">Rating</th>
-                <th className="px-4 py-2 text-center">User ID</th>
                 <th className="px-4 py-2 text-center">Sentiment</th>
                 <th className="px-4 py-2 text-center">Confidence</th>
+                <th className="px-4 py-2 text-center">Created At</th>
               </tr>
             </thead>
             <tbody>
@@ -125,7 +153,6 @@ export default function CommentsPage() {
                     <td className="px-4 py-2 text-center">
                       {"⭐".repeat(c.rating)}
                     </td>
-                    <td className="px-4 py-2 text-center">{c.userId}</td>
                     <td
                       className={`px-4 py-2 text-center font-medium ${
                         c.sentiment === "Positive"
@@ -138,6 +165,7 @@ export default function CommentsPage() {
                       {c.sentiment}
                     </td>
                     <td className="px-4 py-2 text-center">{c.confidence}%</td>
+                    <td className="px-4 py-2 text-center">{c.createdAt}</td>
                   </tr>
                 ))
               ) : (

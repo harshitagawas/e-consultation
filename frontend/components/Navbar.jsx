@@ -7,7 +7,7 @@ const Navbar = () => {
     <>
       {" "}
       <nav className="flex justify-between items-center px-8 py-4 shadow-md bg-white">
-        <div className="text-2xl font-bold text-indigo-600">eConsultation</div>
+        <div className="text-2xl font-bold text-indigo-600">JANVICHAAR</div>
         <ul className="flex space-x-6 text-gray-700 font-medium">
           <li>
             <Link href="/" className="hover:text-indigo-600">
