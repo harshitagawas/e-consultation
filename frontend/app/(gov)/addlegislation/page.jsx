@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import { useState } from "react";
-import { addLegislation } from "@/lib/legislation";
 const page = () => {
   const [formData, setFormData] = useState({
     legislationId: "",
@@ -10,7 +9,6 @@ const page = () => {
     startDate: "",
     endDate: "",
   });
-  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -20,7 +18,7 @@ const page = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      setSubmitting(true);
+      const { addLegislation } = await import('@/lib/legislation');
       await addLegislation(formData);
       alert("Legislation submitted successfully!");
       setFormData({
@@ -30,11 +28,9 @@ const page = () => {
         startDate: "",
         endDate: "",
       });
-    } catch (err) {
-      console.error(err);
-      alert(err?.message || "Failed to submit legislation");
-    } finally {
-      setSubmitting(false);
+    } catch (error) {
+      console.error('Error adding legislation:', error);
+      alert("Failed to add legislation: " + error.message);
     }
   };
   return (
@@ -121,10 +117,9 @@ const page = () => {
 
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full mt-6 bg-indigo-600 disabled:opacity-60 text-white py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition"
+              className="w-full mt-6 bg-indigo-600 text-white py-2 px-4 rounded-lg shadow hover:bg-indigo-700 transition"
             >
-              {submitting ? "Submitting..." : "Submit"}
+              Submit
             </button>
           </form>
         </div>
