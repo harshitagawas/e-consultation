@@ -76,6 +76,7 @@ pip-delete-this-directory.txt
 next-env.d.ts
 
 # Large model files and cache
+/backend/.venv/
 /backend/.cache/
 /backend/models/
 *.pt
@@ -83,6 +84,13 @@ next-env.d.ts
 *.onnx
 *.bin
 *.h5
+*.lib
+*.dll
+
+# Specifically exclude large PyTorch files
+/backend/.venv/Lib/site-packages/torch/lib/kineto.lib
+/backend/.venv/Lib/site-packages/torch/lib/torch_cpu.dll
+/backend/.venv/Lib/site-packages/torch/lib/dnnl.lib
 
 # System Files
 Thumbs.db
