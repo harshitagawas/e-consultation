@@ -150,6 +150,10 @@ export default function SubmitFeedback() {
                     )
                   )}
                 </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  <p>1 star → Very Negative, 2 stars → Negative, 3 stars → Neutral / Mixed,</p>
+                  <p>4 stars → Positive, 5 stars → Very Positive</p>
+                </div>
               </div>
 
               {/* Submit Button */}

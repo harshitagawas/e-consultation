@@ -9,7 +9,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { listLegislation } from "@/lib/legislation";
-
+import Link from "next/link";
 export default function DashboardStats() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -181,15 +181,26 @@ export default function DashboardStats() {
             Quick Actions
           </h3>
           <div className="grid grid-cols-12 gap-4">
-            <button className="col-span-12 sm:col-span-5 flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg shadow hover:bg-indigo-700 transition">
-              <PlusCircle className="w-5 h-5" /> Add Legislation
-            </button>
-            <button className="col-span-12 sm:col-span-4 flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow hover:bg-emerald-700 transition">
-              <MessageSquare className="w-5 h-5" /> View Comments
-            </button>
-            <button className="col-span-12 sm:col-span-3 flex items-center justify-center gap-2 bg-purple-600 text-white px-4 py-3 rounded-lg shadow hover:bg-purple-700 transition">
-              <BarChart3 className="w-5 h-5" /> Analyze Data
-            </button>
+            {/* Add Legislation */}
+            <Link href="/addlegislation" className="col-span-12 sm:col-span-5">
+              <button className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg shadow hover:bg-indigo-700 transition">
+                <PlusCircle className="w-5 h-5" /> Add Legislation
+              </button>
+            </Link>
+
+            {/* View Comments */}
+            <Link href="/comments" className="col-span-12 sm:col-span-4">
+              <button className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-3 rounded-lg shadow hover:bg-emerald-700 transition">
+                <MessageSquare className="w-5 h-5" /> View Comments
+              </button>
+            </Link>
+
+            {/* Analyze Data */}
+            <Link href="/analysis" className="col-span-12 sm:col-span-3">
+              <button className="w-full flex items-center justify-center gap-2 bg-purple-600 text-white px-4 py-3 rounded-lg shadow hover:bg-purple-700 transition">
+                <BarChart3 className="w-5 h-5" /> Analyze Data
+              </button>
+            </Link>
           </div>
         </div>
       </div>

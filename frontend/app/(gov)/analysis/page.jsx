@@ -21,9 +21,11 @@ export default function AnalysisPage() {
   const [selectedLeg, setSelectedLeg] = useState("");
   const [loading, setLoading] = useState(false);
   const [sentiments, setSentiments] = useState({});
-  const [summary, setSummary] = useState("");
+  const [regularSummary, setRegularSummary] = useState("");
+  const [wordcloudSummary, setWordcloudSummary] = useState("");
   const [wordcloudB64, setWordcloudB64] = useState("");
   const [wordcloudWords, setWordcloudWords] = useState([]);
+  const [allKeywords, setAllKeywords] = useState([]);
   const [savingAnalysis, setSavingAnalysis] = useState(false);
   const [ratingCounts, setRatingCounts] = useState({
     1: 0,
@@ -108,10 +110,15 @@ export default function AnalysisPage() {
   const fetchComments = async (legislationId) => {
     setLoading(true);
     try {
+      // Reset all state variables
       setComments([]);
       setSentiments({});
-      setSummary("");
+      setRegularSummary("");
+      setWordcloudSummary("");
+      setAllKeywords([]);
       setWordcloudWords([]);
+      setWordcloudB64(""); // Reset word cloud image
+
       const items = await listComments({ legislationId });
       const sorted = [...items].sort((a, b) => {
         const ta = a.createdAt?.seconds || 0;
@@ -131,37 +138,125 @@ export default function AnalysisPage() {
     if (selectedLeg) fetchComments(selectedLeg);
   }, [selectedLeg]);
 
+  // Create a ref to track the current analysis ID
+  const currentAnalysisRef = useRef(null);
+
   useEffect(() => {
+    // Create a unique identifier for this analysis run
+    const analyzeId = Date.now().toString();
+    // Update the ref with the current analysis ID
+    currentAnalysisRef.current = analyzeId;
+
     const analyze = async () => {
       if (comments.length === 0) return;
+
+      // Capture the current legislation and analysis ID
       const legAtStart = selectedLeg;
+      const thisAnalysisId = analyzeId;
+
       try {
+        // Process sentiments
         const byId = {};
         comments.forEach((c) => {
           if (c.sentimentLabel) {
             byId[c.id] = { label: c.sentimentLabel, score: c.sentimentScore };
           }
         });
-        if (legAtStart === selectedLeg) setSentiments(byId);
 
-        const sres = await fetch(`${apiBase}/summarize`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ texts: comments.map((c) => c.text) }),
-        });
-        if (sres.ok) {
-          const sdata = await sres.json();
-          if (legAtStart === selectedLeg) setSummary(sdata.summary || "");
+        // Only update if this is still the current analysis and legislation
+        if (
+          thisAnalysisId === currentAnalysisRef.current &&
+          legAtStart === selectedLeg
+        ) {
+          setSentiments(byId);
+        } else {
+          return; // Abort if legislation changed
         }
 
+        // Get keyword-based summary
+        const ksres = await fetch(`${apiBase}/keyword-summary`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            comments: comments.map((c) => ({
+              text: c.text,
+              rating: c.rating || 0,
+            })),
+            top_n: 10,
+          }),
+        });
+
+        // Check again if this is still the current analysis
+        if (
+          thisAnalysisId !== currentAnalysisRef.current ||
+          legAtStart !== selectedLeg
+        ) {
+          return; // Abort if legislation changed
+        }
+
+        if (ksres.ok) {
+          const ksdata = await ksres.json();
+          if (
+            thisAnalysisId === currentAnalysisRef.current &&
+            legAtStart === selectedLeg
+          ) {
+            setWordcloudSummary(ksdata.wordcloud_summary || "");
+            setRegularSummary(ksdata.regular_summary || "");
+            setAllKeywords(ksdata.all_keywords || []);
+          } else {
+            return; // Abort if legislation changed
+          }
+        } else {
+          // Fallback to regular summarization if keyword summary fails
+          const sres = await fetch(`${apiBase}/summarize`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: comments.map((c) => c.text) }),
+          });
+
+          // Check again if this is still the current analysis
+          if (
+            thisAnalysisId !== currentAnalysisRef.current ||
+            legAtStart !== selectedLeg
+          ) {
+            return; // Abort if legislation changed
+          }
+
+          if (sres.ok) {
+            const sdata = await sres.json();
+            if (
+              thisAnalysisId === currentAnalysisRef.current &&
+              legAtStart === selectedLeg
+            ) {
+              setRegularSummary(sdata.summary || "");
+              setWordcloudSummary("");
+            } else {
+              return; // Abort if legislation changed
+            }
+          }
+        }
+
+        // Get word cloud
         const wres = await fetch(`${apiBase}/wordcloud`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ texts: comments.map((c) => c.text) }),
         });
+
+        // Final check if this is still the current analysis
+        if (
+          thisAnalysisId !== currentAnalysisRef.current ||
+          legAtStart !== selectedLeg
+        ) {
+          return; // Abort if legislation changed
+        }
+
         if (wres.ok) {
           const wdata = await wres.json();
-          if (legAtStart === selectedLeg) {
+          if (
+            thisAnalysisId === currentAnalysisRef.current &&
+            legAtStart === selectedLeg
+          ) {
             setWordcloudB64(wdata.image_base64 || "");
             setWordcloudWords(wdata.top_words || []);
           }
@@ -170,6 +265,7 @@ export default function AnalysisPage() {
         console.error("analysis failed", err);
       }
     };
+
     analyze();
   }, [comments, apiBase, selectedLeg]);
 
@@ -181,10 +277,20 @@ export default function AnalysisPage() {
   ];
   const pieColors = ["#22c55e", "#ef4444", "#9ca3af"];
 
-  // Bar chart data
-  const ratingData = Object.keys(ratingCounts).map((r) => ({
-    rating: r,
-    count: ratingCounts[r],
+  // Bar chart data with sentiment mapping
+  const ratingSentimentMap = {
+    "1": "Very Negative",
+    "2": "Negative",
+    "3": "Neutral / Mixed",
+    "4": "Positive",
+    "5": "Very Positive"
+  };
+  
+  // Ensure all 5 ratings are displayed even if some have zero count
+  const ratingData = [1, 2, 3, 4, 5].map(r => ({
+    rating: String(r),
+    count: ratingCounts[r] || 0,
+    sentiment: ratingSentimentMap[String(r)]
   }));
 
   return (
@@ -291,16 +397,26 @@ export default function AnalysisPage() {
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={ratingData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="rating" />
+              <XAxis
+                dataKey="rating"
+                tickFormatter={(value) =>
+                  `${value} - ${ratingSentimentMap[value]}`
+                }
+              />
               <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#3b82f6" />
+              <Tooltip
+                formatter={(value, name, props) => [value, "Count"]}
+                labelFormatter={(value) =>
+                  `${value} Star - ${ratingSentimentMap[value]}`
+                }
+              />
+              <Bar dataKey="count" fill="#3b82f6" name="Responses" />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Word Cloud & Summary */}
+      {/* Word Cloud & Summaries */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {wordcloudB64 && (
           <div className="bg-white shadow rounded p-4">
@@ -312,13 +428,58 @@ export default function AnalysisPage() {
             />
           </div>
         )}
-        {summary && (
+
+        {/* Regular Summary */}
+        {regularSummary && (
           <div className="bg-white shadow rounded p-4">
-            <h3 className="font-medium mb-2">Summary</h3>
-            <p className="text-sm text-gray-700">{summary}</p>
+            <h3 className="font-medium mb-2">All Feedback Summary</h3>
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {regularSummary}
+            </p>
+            {/* <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500 italic">
+                This summary is generated using AI from all user comments.
+              </p>
+            </div> */}
           </div>
         )}
       </div>
+
+      {/* Word Cloud Summary with Highlighted Words */}
+      {wordcloudSummary && (
+        <div className="bg-white shadow rounded p-4">
+          <h3 className="font-medium mb-2">Word Cloud Summary</h3>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {wordcloudSummary.split(" ").map((word, index) => {
+              // Remove punctuation for matching
+              const cleanWord = word.replace(/[.,!?;:()]/g, "").toLowerCase();
+              const isKeyword = allKeywords.some(
+                (keyword) =>
+                  keyword.toLowerCase().includes(cleanWord) ||
+                  cleanWord.includes(keyword.toLowerCase())
+              );
+
+              return (
+                <span
+                  key={index}
+                  className={isKeyword ? "font-bold text-blue-600" : ""}
+                >
+                  {word}{" "}
+                </span>
+              );
+            })}
+          </p>
+          {/* <div className="mt-3 pt-3 border-t border-gray-200">
+            <p className="text-xs text-gray-500 italic">
+              This summary is generated using AI-powered keyword extraction from
+              user comments.
+              <span className="block mt-1">
+                Words highlighted in blue appear in the word cloud.
+              </span>
+            </p>
+          </div> */}
+        </div>
+      )}
 
       {/* Comments Table */}
       <div className="bg-white shadow rounded p-4">
